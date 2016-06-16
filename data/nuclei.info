@@ -1,0 +1,13 @@
+[RootFolder]
+/Users/mviana/Documents/ProjectsPersonal/ShellExpansion/data/
+[Prefix]
+nuclei
+[SpacingXY]
+0.09
+[SpacingZ]
+0.2
+[Centers]
+0,101,99,45
+1,164,202,45
+2,26,262,40
+[end]

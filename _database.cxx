@@ -2,15 +2,15 @@
 
     void _database::Print() {
         for (int i = 0; i < _x.size(); i++)
-            printf("%d\t%d\t%d\t%d\t%d\t%1.2f\t%1.2f\n",_id[i],_type[i],_x[i],_y[i],_z[i],_r1[i],_r2[i]);
+            printf("%d\t%d\t%d\t%d\n",_id[i],_x[i],_y[i],_z[i]);
     }
     
-    std::string _database::GetFullCellName() {
-        return _RootFolder + _Prefix + ".tif";
+    std::string _database::GetRootFolder() {
+        return _RootFolder;
     }
 
-    std::string _database::GetFullMitoName() {
-        return _MitoFolder + _Prefix + ".tif";
+    std::string _database::GetPrefix() {
+        return _Prefix;
     }
 
     std::string _database::MakeGenericFileName(int i, std::string Name, std::string Ext) {
@@ -26,23 +26,13 @@
         std::string line;
         std::ifstream infile(CentersFileName.c_str());
         #ifdef DEBUG
-            printf("Reading .centers file...\n");
+            printf("Reading .info file...\n");
         #endif
         for( std::string line; getline( infile, line ); ) {
             if ( line == "[RootFolder]" ) {
                 getline(infile,line);
                 this -> _RootFolder = line;
                 printf("> %s\n",this -> _RootFolder.c_str());
-            }
-            if ( line == "[MitoFolder]" ) {
-                getline(infile,line);
-                this -> _MitoFolder = line;
-                printf("> %s\n",this -> _MitoFolder.c_str());
-            }
-            if ( line == "[CellFolder]" ) {
-                getline(infile,line);
-                this -> _CellFolder = line;
-                printf("> %s\n",this -> _CellFolder.c_str());
             }
             if ( line == "[Prefix]" ) {
                 getline(infile,line);
@@ -63,11 +53,12 @@
                 getline(infile,line);
                 std::vector<double> Vector;
                 while (line != "[end]") {
-                    for (int p = 7; p--;) {
+                    while (line.find(",") != std::string::npos) {
                         std::string value = line.substr(0,line.find(','));
                         line.erase(0,value.length()+1);
                         Vector.push_back(std::stof(value));
                     }
+                    Vector.push_back(std::stof(line));
                     this -> AddFromVector(Vector);
                     getline(infile,line);
                     Vector.clear();

@@ -1,6 +1,44 @@
+/*
 
-#include "_database.h"
-#include "_shell.h"
+    Region Growing Segmentation
+    ---------------------------
+
+    File xx.info contains information about the z-stack and a list of seeds coordinates.
+    For each seed, we grow a blob shell-by-shell as we monitore the number of connected
+    components of the current shell. Only components larger than `Smin` pixels are allowed
+    to grow. In addition, voxels of th current shell are allowed to recruit new voxels
+    for the next shell only if their intensity is lower than `threshold`.
+
+    Parameters
+    ----------
+
+        threshold: maximum internsity allowed for a voxel
+                   to be incorporated in the growing blob.
+
+        Smin:      Minimum number of voxels that a component of
+                   a shell has to have in order to grow.
+
+
+    Matheus Palhares Viana, IBM Research | Brazil, 06.16.2016
+
+    Things to do and further improvements
+    -------------------------------------
+
+    - The algorithm prevents the growing region from leaking in many circustances, but
+      this requires the leakage to occurs as a disconnected component. If this is not
+      the case, the algorithm will fail. Something else has to be done in those cases.
+
+    - Monitore the curvature of the growing region voxel-by-voxel and use it as another
+      parameter to determine whether a given voxel can grow.
+
+    - Resample the resulting surface according to `SpacingXY` and `SpacingZ` specified
+      info file.
+
+    - Implement a new method for generating seeds automatically.
+
+*/
+
+#include "includes.h"
 
 int SaveImageData(const char FileName[], vtkImageData *Image) {
     vtkSmartPointer<vtkStructuredPointsWriter> W = vtkSmartPointer<vtkStructuredPointsWriter>::New();
@@ -10,21 +48,25 @@ int SaveImageData(const char FileName[], vtkImageData *Image) {
     return EXIT_SUCCESS;
 }
 
-int ExpandBlobsFromSeed(_database *DataBase) {
+int ExpandBlobsFromSeed(_database *DataBase, double threshold, vtkIdType Smin) {
 
     #ifdef DEBUG
         printf("Shell Expansion [DEBUG mode]\n");
-        printf("File name: %s\n",DataBase->GetFullCellName().c_str());
+        printf("File name: %s\n",DataBase->GetPrefix().c_str());
     #endif
 
     vtkSmartPointer<vtkTIFFReader> TIFFReader = vtkSmartPointer<vtkTIFFReader>::New();
     TIFFReader -> SetOrientationType(TIFF_ORIENTATION_READER);
-    TIFFReader -> SetFileName(DataBase->GetFullCellName().c_str());
+    TIFFReader -> SetFileName((DataBase->GetRootFolder()+DataBase->GetPrefix()+".tif").c_str());
     TIFFReader -> Update();
 
-    vtkSmartPointer<vtkImageData> ImageData = TIFFReader -> GetOutput();
-    ImageData -> Modified();
+    vtkSmartPointer<vtkImageFlip> Flip = vtkSmartPointer<vtkImageFlip>::New();
+    Flip -> SetFilteredAxis(1);
+    Flip -> SetInputData(TIFFReader->GetOutput());
+    Flip -> Update();
 
+    vtkSmartPointer<vtkImageData> ImageData = Flip -> GetOutput();
+    
     vtkSmartPointer<vtkImageData> BackupImage = vtkSmartPointer<vtkImageData>::New();
     BackupImage -> DeepCopy(ImageData);
     BackupImage -> Modified();
@@ -45,11 +87,11 @@ int ExpandBlobsFromSeed(_database *DataBase) {
         printf("Running Seed [%d]: %d, %d, %d\n",DataBase->GetId(id),xo,yo,zo);
 
         _expanding_blob EBlob(1,ImageData);
-        EBlob.SetSeed(xo,yo,zo);
+        EBlob.SetSeed(xo,Dim[1]-yo,zo);
 
         run = 0;
-        while(EBlob.Expand((run>15)?1:0) && run < MAX_IT) {
-            EBlob.ExportCurrentShell(std::string("temp"+std::to_string(run)+".vtk"));
+        while(EBlob.Expand(threshold,(run>15)?Smin:0) && run < MAX_IT) {
+            //EBlob.ExportCurrentShell((DataBase->GetRootFolder()+DataBase->GetPrefix()+"-"+std::to_string(DataBase->GetId(id))+"-points-"+std::to_string(run)+".vtk").c_str());
             run++;
         }
 
@@ -115,13 +157,11 @@ int ScanFolderForThisExtension(const char _root[], const char ext[], std::vector
     return EXIT_SUCCESS;
 }
 
-/* ================================================================
-   MAIN ROUTINE
-=================================================================*/
-
 int main(int argc, char *argv[]) {     
     
     std::string Path;
+    vtkIdType Smin = 50;
+    double threshold = 9000;
     _database *DataBase = new _database;
     for (int i = 0; i < argc; i++) {
         if (!strcmp(argv[i],"-path")) {
@@ -129,23 +169,20 @@ int main(int argc, char *argv[]) {
             if (Path.back() != '/')
                 Path = Path + '/';
         }
-        if (!strcmp(argv[i],"-check")) {
-            DataBase->SetCheckModeOn();
+        if (!strcmp(argv[i],"-threshold")) {
+            threshold = atof(argv[i+1]);
+        }
+        if (!strcmp(argv[i],"-smin")) {
+            Smin = atoi(argv[i+1]);
         }
     }
 
     std::vector<std::string> Files;
-    ScanFolderForThisExtension(Path.c_str(),".centers",&Files);
+    ScanFolderForThisExtension(Path.c_str(),".info",&Files);
 
     for (int i = 0; i < Files.size(); i++) {
-        DataBase -> PopulateFromFile(Files[i]+".centers");
-        ExpandBlobsFromSeed(DataBase);
-        if ( DataBase->CheckMode() ) {
-            #ifdef DEBUG
-                printf("Running check mode...\n");
-            #endif
-            break;
-        }
+        DataBase -> PopulateFromFile(Files[i]+".info");
+        ExpandBlobsFromSeed(DataBase,threshold,Smin);
     }
 
     return EXIT_SUCCESS;
