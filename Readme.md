@@ -25,6 +25,6 @@ the case, the algorithm will fail. Something else has to be done in those cases.
 
 `./ShellExpansion -path PATH_TO_YOUR_INFO_FILE -smin 50 -threshold 15000`
 
-*Matheus Palhares Viana, IBM Research | Brazil, 06.16.2016*
+*Matheus Palhares Viana 06.16.2016*
 
 ![3D view of resulting surfaces in Paraview](example.jpg)
